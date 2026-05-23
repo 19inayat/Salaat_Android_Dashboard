@@ -8,7 +8,6 @@ import android.os.Looper
 import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
 import com.google.android.gms.location.LocationServices
-import java.time.LocalTime
 import java.time.chrono.HijrahDate
 import java.time.format.DateTimeFormatter
 import java.util.Calendar
@@ -123,7 +122,7 @@ class NamazWallpaperService : WallpaperService() {
             textPaint.color = Color.parseColor("#A0AEC0")
             canvas.drawText(locationText, cx, cy + 80f, textPaint)
 
-            // --- MOCK PRAYER TIMES FOR EXAMPLE (Replace with your math) ---
+            // --- MOCK PRAYER TIMES FOR EXAMPLE (Replace with dynamic array map implementation) ---
             val dFajr = 5.6f
             val dSunr = 6.9f
             
@@ -179,7 +178,7 @@ class NamazWallpaperService : WallpaperService() {
             if (decTime < sunriseDec) dayOfWeek = (dayOfWeek + 6) % 7
             
             val rulerStartIndex = dayRulers[dayOfWeek]
-            return arrayOf(planets[rulerStartIndex], planets[(rulerStartIndex + 1) % 7]) // Simplified for example
+            return arrayOf(planets[rulerStartIndex], planets[(rulerStartIndex + 1) % 7]) 
         }
     }
 }
