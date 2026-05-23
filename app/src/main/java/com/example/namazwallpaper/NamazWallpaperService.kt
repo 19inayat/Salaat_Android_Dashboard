@@ -10,6 +10,7 @@ import android.view.SurfaceHolder
 import com.google.android.gms.location.LocationServices
 import java.time.chrono.HijrahDate
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Calendar
 import kotlin.math.cos
 import kotlin.math.sin
@@ -19,15 +20,17 @@ class NamazWallpaperService : WallpaperService() {
 
     inner class NamazEngine : Engine() {
         private val handler = Handler(Looper.getMainLooper())
-        private var isVisible = false
         
-        // 1. Initial Load Defaults (Hubballi)
+        // FIXED 1: Renamed from 'isVisible' to avoid clashing with Android's system property
+        private var engineVisible = false 
+
+        // Initial Load Defaults (Hubballi)
         private var currentLat = 15.3647
         private var currentLng = 75.1240
         private var isGpsLocked = false
 
         // Night Vision Palette (Single Color)
-        private val bgPaint = Paint().apply { color = Color.parseColor("#040714") } // Deep Night Vision Blue/Black
+        private val bgPaint = Paint().apply { color = Color.parseColor("#040714") }
         private val textPaint = Paint().apply {
             color = Color.parseColor("#FBBF24")
             isAntiAlias = true
@@ -41,13 +44,16 @@ class NamazWallpaperService : WallpaperService() {
         }
 
         // Fused Location for Background GPS
-        private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(applicationContext)
+        private val fusedLocationClient by lazy {
+            LocationServices.getFusedLocationProviderClient(this@NamazWallpaperService)
+        }
 
         // The 60-FPS Drawing Loop
         private val drawRunner = object : Runnable {
             override fun run() {
                 drawFrame()
-                if (isVisible) handler.postDelayed(this, 1000) // Update clock every 1 second
+                // FIXED 2: Appended 'L' to force Kotlin to treat the number as a Long
+                if (engineVisible) handler.postDelayed(this, 1000L) 
             }
         }
 
@@ -62,19 +68,19 @@ class NamazWallpaperService : WallpaperService() {
                         isGpsLocked = true
                     }
                 }
-                // Check GPS every 15 minutes (900,000 ms) in the background
-                handler.postDelayed(this, 15 * 60 * 1000)
+                // FIXED 3: Passed explicit Long (900,000 milliseconds) instead of Int math
+                handler.postDelayed(this, 900000L) 
             }
         }
 
         override fun onVisibilityChanged(visible: Boolean) {
-            this.isVisible = visible
+            super.onVisibilityChanged(visible)
+            this.engineVisible = visible
             if (visible) {
                 handler.post(drawRunner)
                 handler.post(gpsRunner)
             } else {
                 handler.removeCallbacks(drawRunner)
-                // We leave gpsRunner running in the background depending on OS constraints
             }
         }
 
@@ -92,7 +98,6 @@ class NamazWallpaperService : WallpaperService() {
         }
 
         private fun renderDashboard(canvas: Canvas) {
-            // 1. Draw Night Vision Background
             canvas.drawRect(0f, 0f, canvas.width.toFloat(), canvas.height.toFloat(), bgPaint)
 
             val width = canvas.width.toFloat()
@@ -100,21 +105,17 @@ class NamazWallpaperService : WallpaperService() {
             val cx = width / 2f
             val cy = height / 2f
             
-            // Dashboard MUST fit the screen size in width
             val radius = width * 0.40f 
             val innerRadius = radius * 0.50f
             val rectF = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
 
-            // Current Time as Decimal (0 to 24)
             val cal = Calendar.getInstance()
             val currentDec = cal.get(Calendar.HOUR_OF_DAY) + 
                              (cal.get(Calendar.MINUTE) / 60f) + 
                              (cal.get(Calendar.SECOND) / 3600f)
 
-            // Calculate active Hijri Date natively (No API required)
             val hijriDate = getNativeHijriDate(currentDec)
 
-            // --- DRAW CENTER UI ---
             canvas.drawText(hijriDate, cx, cy - 60f, textPaint)
             
             val locationText = if (isGpsLocked) "GPS LIVE" else "HUBBALLI (DEFAULT)"
@@ -122,21 +123,17 @@ class NamazWallpaperService : WallpaperService() {
             textPaint.color = Color.parseColor("#A0AEC0")
             canvas.drawText(locationText, cx, cy + 80f, textPaint)
 
-            // --- MOCK PRAYER TIMES FOR EXAMPLE (Replace with dynamic array map implementation) ---
             val dFajr = 5.6f
             val dSunr = 6.9f
             
-            // Draw an Arc segment for Fajr
-            arcPaint.color = Color.parseColor("#1B2A47") // Muted night vision segment
+            arcPaint.color = Color.parseColor("#1B2A47")
             val fajrStartAngle = (dFajr / 24f) * 360f - 90f
             val fajrSweepAngle = ((dSunr - dFajr) / 24f) * 360f
             canvas.drawArc(rectF, fajrStartAngle, fajrSweepAngle, true, arcPaint)
             
-            // Draw center cutout to make it a donut
             arcPaint.color = bgPaint.color
             canvas.drawCircle(cx, cy, innerRadius, arcPaint)
 
-            // --- DRAW LIVE NEEDLE ---
             val needleAngle = ((currentDec / 24f) * 360f - 90f) * (Math.PI / 180f)
             val nx = cx + cos(needleAngle).toFloat() * (innerRadius - 20f)
             val ny = cy + sin(needleAngle).toFloat() * (innerRadius - 20f)
@@ -149,29 +146,25 @@ class NamazWallpaperService : WallpaperService() {
             canvas.drawLine(cx, cy, nx, ny, needlePaint)
             canvas.drawCircle(nx, ny, 10f, needlePaint)
             
-            // Calculate Day/Hour/Minute Planetary Ruler
             val planets = getPlanetaryRulers(currentDec, dSunr)
             canvas.drawText("HOUR PLANET: ${planets[1]}", cx, cy + 250f, textPaint)
         }
 
-        // Native Hijri Calculation (No Internet Needed)
         private fun getNativeHijriDate(currentDecTime: Float): String {
-            // Android 8.0+ native Islamic Calendar
             var hijrahDate = HijrahDate.now()
             
-            // If it's past Maghrib (e.g. 18.5 decimal), add 1 day automatically
             if (currentDecTime > 18.5f) {
-                hijrahDate = hijrahDate.plusDays(1)
+                // FIXED 4: Used correct ChronoUnit addition method for HijrahDate class
+                hijrahDate = hijrahDate.plus(1, ChronoUnit.DAYS)
             }
             
             val formatter = DateTimeFormatter.ofPattern("dd MMMM yyyy 'AH'")
             return formatter.format(hijrahDate)
         }
 
-        // Chaldean Planetary Calculation
         private fun getPlanetaryRulers(decTime: Float, sunriseDec: Float): Array<String> {
             val planets = arrayOf("Sun", "Venus", "Mercury", "Moon", "Saturn", "Jupiter", "Mars")
-            val dayRulers = arrayOf(0, 3, 6, 2, 5, 1, 4) // Sun to Sat
+            val dayRulers = arrayOf(0, 3, 6, 2, 5, 1, 4) 
             
             val cal = Calendar.getInstance()
             var dayOfWeek = cal.get(Calendar.DAY_OF_WEEK) - 1
