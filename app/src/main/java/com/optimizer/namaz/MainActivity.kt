@@ -7,53 +7,42 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.LinearGradient
-import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.RectF
-import android.graphics.Shader
-import android.graphics.Typeface
-import android.icu.util.IslamicCalendar
 import android.location.LocationManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
-import android.view.View
+
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
+
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
+
 import androidx.core.content.ContextCompat
-import androidx.work.CoroutineWorker
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.WorkerParameters
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import androidx.work.*
+
+import kotlinx.coroutines.*
+
 import org.json.JSONObject
+
 import java.net.URL
 import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
+import java.util.*
 import java.util.concurrent.TimeUnit
+
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -93,25 +82,42 @@ object DataEngine {
         }
     }
 
-    private fun updateHijriDate() {
-        val cal = IslamicCalendar()
-        val day = cal.get(Calendar.DAY_OF_MONTH)
-        if (day != lastHijriCheckDay) {
-            lastHijriCheckDay = day
-            if (day in 29..30) {
-                try {
-                    val dStr = SimpleDateFormat("dd-MM-yyyy", Locale.US).format(Date())
-                    val res = URL("https://api.aladhan.com/v1/gToH?date=$dStr").readText()
-                    val json = JSONObject(res).getJSONObject("data").getJSONObject("hijri")
-                    cachedHijriDate = "${json.getString("day")} ${json.getJSONObject("month").getString("en")}\n${json.getString("year")}"
-                } catch (e: Exception) {
-                    cachedHijriDate = "${day} ${cal.get(Calendar.MONTH)}\n${cal.get(Calendar.YEAR)}"
-                }
-            } else {
-                cachedHijriDate = "${day} ${cal.get(Calendar.MONTH)}\n${cal.get(Calendar.YEAR)}"
-            }
+    private suspend fun updateHijriDate() {
+
+    val cal = Calendar.getInstance()
+    val day = cal.get(Calendar.DAY_OF_MONTH)
+
+    if (day != lastHijriCheckDay) {
+
+        lastHijriCheckDay = day
+
+        try {
+
+            val dStr = SimpleDateFormat(
+                "dd-MM-yyyy",
+                Locale.US
+            ).format(Date())
+
+            val res = URL(
+                "https://api.aladhan.com/v1/gToH?date=$dStr"
+            ).readText()
+
+            val json = JSONObject(res)
+                .getJSONObject("data")
+                .getJSONObject("hijri")
+
+            cachedHijriDate =
+                "${json.getString("day")} " +
+                "${json.getJSONObject("month").getString("en")}\n" +
+                json.getString("year")
+
+        } catch (e: Exception) {
+
+            cachedHijriDate =
+                "$day/${cal.get(Calendar.MONTH) + 1}/${cal.get(Calendar.YEAR)}"
         }
     }
+}
 
     private fun calculateState(): NamazState {
         val now = Date()
@@ -391,10 +397,13 @@ class MainActivity : ComponentActivity() {
                     },
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = androidx.compose.ui.graphics.Color(Color.parseColor("#353A55"))
-                    )
+    containerColor = Color(0xFF353A55)
+)
                 ) {
-                    Text("SET AS LIVE WALLPAPER", color = androidx.compose.ui.graphics.Color.White)
+                    Text(
+    "SET AS LIVE WALLPAPER",
+    color = Color.White
+)
                 }
             }
         }
