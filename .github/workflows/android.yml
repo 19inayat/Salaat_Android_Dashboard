@@ -26,26 +26,26 @@ jobs:
           java-version: 17
 
       - name: Install unzip
-        run: sudo apt-get install unzip
+        run: sudo apt-get update && sudo apt-get install -y unzip
 
-      - name: Unzip Android Project
-        run: unzip Salaat_Android_Dashboard_FIXED.zip
+      - name: Unzip Project
+        run: unzip -o Salaat_Android_Dashboard_FIXED.zip
 
-      - name: List Files
-        run: ls
+      - name: Show Extracted Files
+        run: ls -R
 
-      - name: Enter Project Folder
-        run: ls Salaat_Android_Dashboard-main
+      - name: Find gradlew
+        run: find . -name gradlew
 
-      - name: Grant Gradle Permission
-        run: chmod +x Salaat_Android_Dashboard-main/gradlew
+      - name: Grant Permission
+        run: chmod +x ./Salaat_Android_Dashboard-main/gradlew
 
       - name: Build APK
-        working-directory: Salaat_Android_Dashboard-main
+        working-directory: ./Salaat_Android_Dashboard-main
         run: ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: NamazDashboard-APK
-          path: Salaat_Android_Dashboard-main/app/build/outputs/apk/debug/app-debug.apk
+          path: ./Salaat_Android_Dashboard-main/app/build/outputs/apk/debug/app-debug.apk
