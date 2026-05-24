@@ -25,14 +25,27 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Grant Execute Permission
-        run: chmod +x gradlew
+      - name: Install unzip
+        run: sudo apt-get install unzip
+
+      - name: Unzip Android Project
+        run: unzip Salaat_Android_Dashboard_FIXED (1).zip
+
+      - name: List Files
+        run: ls
+
+      - name: Enter Project Folder
+        run: ls Salaat_Android_Dashboard-main
+
+      - name: Grant Gradle Permission
+        run: chmod +x Salaat_Android_Dashboard-main/gradlew
 
       - name: Build APK
+        working-directory: Salaat_Android_Dashboard-main
         run: ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: NamazDashboard-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: Salaat_Android_Dashboard-main/app/build/outputs/apk/debug/app-debug.apk
