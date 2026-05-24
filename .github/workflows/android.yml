@@ -29,7 +29,7 @@ jobs:
         run: sudo apt-get install unzip
 
       - name: Unzip Android Project
-        run: unzip Salaat_Android_Dashboard_FIXED (1).zip
+        run: unzip Salaat_Android_Dashboard_FIXED.zip
 
       - name: List Files
         run: ls
