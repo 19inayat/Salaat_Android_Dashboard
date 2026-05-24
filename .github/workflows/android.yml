@@ -31,21 +31,23 @@ jobs:
       - name: Unzip Project
         run: unzip -o Salaat_Android_Dashboard_FIXED.zip
 
-      - name: Show Extracted Files
+      - name: Show Files
         run: ls -R
 
-      - name: Find gradlew
-        run: find . -name gradlew
+      - name: Find gradlew Folder
+        run: |
+          PROJECT_DIR=$(find . -name gradlew | head -n 1 | xargs dirname)
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
 
       - name: Grant Permission
-        run: chmod +x ./Salaat_Android_Dashboard-main/gradlew
+        run: chmod +x $PROJECT_DIR/gradlew
 
       - name: Build APK
-        working-directory: ./Salaat_Android_Dashboard-main
+        working-directory: ${{ env.PROJECT_DIR }}
         run: ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: NamazDashboard-APK
-          path: ./Salaat_Android_Dashboard-main/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
