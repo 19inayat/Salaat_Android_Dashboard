@@ -7,7 +7,14 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.* // Android Graphics
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
+import android.graphics.Shader
+import android.graphics.Typeface
 import android.icu.util.IslamicCalendar
 import android.location.LocationManager
 import android.os.Bundle
@@ -15,29 +22,37 @@ import android.os.Handler
 import android.os.Looper
 import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
+import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue // REQUIRED for Compose State
-import androidx.compose.runtime.setValue // REQUIRED for Compose State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas // REQUIRED for bridging Canvas
-import androidx.compose.ui.graphics.nativeCanvas // REQUIRED for bridging Canvas
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.work.*
-import kotlinx.coroutines.*
+import androidx.work.CoroutineWorker
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.WorkerParameters
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.net.URL
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.math.cos
 import kotlin.math.sin
@@ -72,15 +87,15 @@ object DataEngine {
 
         job = CoroutineScope(Dispatchers.IO).launch {
             while (true) {
-                state = calculateState(context)
+                state = calculateState()
                 delay(1000)
             }
         }
     }
 
-    private suspend fun updateHijriDate() {
+    private fun updateHijriDate() {
         val cal = IslamicCalendar()
-        val day = cal.get(IslamicCalendar.DAY_OF_MONTH)
+        val day = cal.get(Calendar.DAY_OF_MONTH)
         if (day != lastHijriCheckDay) {
             lastHijriCheckDay = day
             if (day in 29..30) {
@@ -90,15 +105,15 @@ object DataEngine {
                     val json = JSONObject(res).getJSONObject("data").getJSONObject("hijri")
                     cachedHijriDate = "${json.getString("day")} ${json.getJSONObject("month").getString("en")}\n${json.getString("year")}"
                 } catch (e: Exception) {
-                    cachedHijriDate = "${day} ${cal.get(IslamicCalendar.MONTH)}\n${cal.get(IslamicCalendar.YEAR)}"
+                    cachedHijriDate = "${day} ${cal.get(Calendar.MONTH)}\n${cal.get(Calendar.YEAR)}"
                 }
             } else {
-                cachedHijriDate = "${day} ${cal.get(IslamicCalendar.MONTH)}\n${cal.get(IslamicCalendar.YEAR)}"
+                cachedHijriDate = "${day} ${cal.get(Calendar.MONTH)}\n${cal.get(Calendar.YEAR)}"
             }
         }
     }
 
-    private suspend fun calculateState(context: Context): NamazState {
+    private fun calculateState(): NamazState {
         val now = Date()
         val cal = Calendar.getInstance().apply { time = now }
         val currentDec = cal.get(Calendar.HOUR_OF_DAY) + (cal.get(Calendar.MINUTE) / 60.0) + (cal.get(Calendar.SECOND) / 3600.0)
@@ -114,15 +129,15 @@ object DataEngine {
         val dIsha = timeStrToDec(timings["Isha"]!!)
 
         val segments = listOf(
-            Segment("FAJR", dFajr, dSunr, android.graphics.Color.parseColor("#FFD54F")),
-            Segment("TULU", dSunr, dSunr + (20.0/60.0), android.graphics.Color.parseColor("#FFB74D")),
-            Segment("ISHRAQ", dSunr + (20.0/60.0), dSunr + ((dFajr + (dMagr - dFajr)/2) - dSunr)/2, android.graphics.Color.parseColor("#FFCC80")),
-            Segment("CHASHT", dSunr + ((dFajr + (dMagr - dFajr)/2) - dSunr)/2, dFajr + (dMagr - dFajr)/2, android.graphics.Color.parseColor("#CE93D8")),
-            Segment("ZAWAL", dFajr + (dMagr - dFajr)/2, dZuhr, android.graphics.Color.parseColor("#69F0AE")),
-            Segment("ZUHR", dZuhr, dAsr, android.graphics.Color.parseColor("#40C4FF")),
-            Segment("ASR", dAsr, dMagr, android.graphics.Color.parseColor("#FF8A65")),
-            Segment("MAGHRIB", dMagr, dIsha, android.graphics.Color.parseColor("#D81B60")),
-            Segment("ISHA", dIsha, dFajr + 24, android.graphics.Color.parseColor("#37474F"))
+            Segment("FAJR", dFajr, dSunr, Color.parseColor("#FFD54F")),
+            Segment("TULU", dSunr, dSunr + (20.0/60.0), Color.parseColor("#FFB74D")),
+            Segment("ISHRAQ", dSunr + (20.0/60.0), dSunr + ((dFajr + (dMagr - dFajr)/2) - dSunr)/2, Color.parseColor("#FFCC80")),
+            Segment("CHASHT", dSunr + ((dFajr + (dMagr - dFajr)/2) - dSunr)/2, dFajr + (dMagr - dFajr)/2, Color.parseColor("#CE93D8")),
+            Segment("ZAWAL", dFajr + (dMagr - dFajr)/2, dZuhr, Color.parseColor("#69F0AE")),
+            Segment("ZUHR", dZuhr, dAsr, Color.parseColor("#40C4FF")),
+            Segment("ASR", dAsr, dMagr, Color.parseColor("#FF8A65")),
+            Segment("MAGHRIB", dMagr, dIsha, Color.parseColor("#D81B60")),
+            Segment("ISHA", dIsha, dFajr + 24, Color.parseColor("#37474F"))
         )
 
         var checkTime = currentDec
@@ -187,21 +202,21 @@ data class NamazState(val now: Date, val currentDec: Double, val segments: List<
 
 // --- 4. THE UNIFIED CANVAS RENDERER ---
 object DashboardRenderer {
-    fun draw(canvas: android.graphics.Canvas, width: Int, height: Int, state: NamazState) {
-        val bgPaint = android.graphics.Paint().apply { shader = android.graphics.LinearGradient(0f, 0f, 0f, height.toFloat(), android.graphics.Color.parseColor("#465287"), android.graphics.Color.parseColor("#2D325A"), android.graphics.Shader.TileMode.CLAMP) }
+    fun draw(canvas: Canvas, width: Int, height: Int, state: NamazState) {
+        val bgPaint = Paint().apply { shader = LinearGradient(0f, 0f, 0f, height.toFloat(), Color.parseColor("#465287"), Color.parseColor("#2D325A"), Shader.TileMode.CLAMP) }
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
 
         val timeStr = SimpleDateFormat("h:mm", Locale.US).format(state.now)
-        val timePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE; textSize = width * 0.3f; textAlign = android.graphics.Paint.Align.CENTER; typeface = android.graphics.Typeface.create(android.graphics.Typeface.SANS_SERIF, android.graphics.Typeface.NORMAL) }
+        val timePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = width * 0.3f; textAlign = Paint.Align.CENTER; typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL) }
         canvas.drawText(timeStr, width / 2f, height * 0.22f, timePaint)
 
         val cx = width / 2f
         val cy = height * 0.45f
         val radius = width * 0.4f
         val innerRadius = radius * 0.5f
-        val rectF = android.graphics.RectF(cx - radius, cy - radius, cx + radius, cy + radius)
-        val arcPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { style = android.graphics.Paint.Style.STROKE; strokeWidth = radius - innerRadius }
-        val textPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE; textSize = radius * 0.12f; typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, android.graphics.Typeface.BOLD); textAlign = android.graphics.Paint.Align.CENTER }
+        val rectF = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
+        val arcPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = radius - innerRadius }
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = radius * 0.12f; typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD); textAlign = Paint.Align.CENTER }
         
         state.segments.forEach { seg ->
             val startAngle = ((seg.start / 24.0) * 360.0 - 90.0).toFloat()
@@ -209,7 +224,7 @@ object DashboardRenderer {
             arcPaint.color = seg.color
             canvas.drawArc(rectF, startAngle, sweepAngle, false, arcPaint)
 
-            val path = android.graphics.Path()
+            val path = Path()
             var normMid = (startAngle + sweepAngle / 2f) % 360f
             if (normMid < 0) normMid += 360f
             if (normMid in 0f..180f) path.addArc(rectF, startAngle + sweepAngle, -sweepAngle) else path.addArc(rectF, startAngle, sweepAngle)
@@ -217,61 +232,61 @@ object DashboardRenderer {
             canvas.drawTextOnPath(seg.name, path, arcLen.toFloat() / 2f, textPaint.textSize / 3f, textPaint)
         }
 
-        val innerPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.parseColor("#1D2036"); style = android.graphics.Paint.Style.FILL }
+        val innerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#1D2036"); style = Paint.Style.FILL }
         canvas.drawCircle(cx, cy, innerRadius, innerPaint)
         
-        val centerSmall = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.LTGRAY; textSize = radius * 0.12f; textAlign = android.graphics.Paint.Align.CENTER }
-        val centerBig = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE; textSize = radius * 0.25f; typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, android.graphics.Typeface.BOLD); textAlign = android.graphics.Paint.Align.CENTER }
-        val centerHighlight = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.parseColor("#FFCC80"); textSize = radius * 0.1f; textAlign = android.graphics.Paint.Align.CENTER }
-        val timerPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.parseColor("#FF4E50"); textSize = radius * 0.18f; typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, android.graphics.Typeface.BOLD); textAlign = android.graphics.Paint.Align.CENTER }
+        val centerSmall = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.LTGRAY; textSize = radius * 0.12f; textAlign = Paint.Align.CENTER }
+        val centerBig = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = radius * 0.25f; typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD); textAlign = Paint.Align.CENTER }
+        val centerHighlight = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#FFCC80"); textSize = radius * 0.1f; textAlign = Paint.Align.CENTER }
+        val timerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#FF4E50"); textSize = radius * 0.18f; typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD); textAlign = Paint.Align.CENTER }
         
         canvas.drawText(SimpleDateFormat("EEE, dd MMM", Locale.US).format(state.now), cx, cy - radius * 0.2f, centerSmall)
         canvas.drawText(state.currentSegment?.name ?: "--", cx, cy + radius * 0.02f, centerBig)
         canvas.drawText("${decToTimeStr(state.currentSegment?.start ?: 0.0)} - ${decToTimeStr(state.currentSegment?.end ?: 0.0)}", cx, cy + radius * 0.15f, centerHighlight)
-        canvas.drawText("REMAINING", cx, cy + radius * 0.25f, android.graphics.Paint(centerSmall).apply { textSize = radius * 0.07f; letterSpacing = 0.1f })
+        canvas.drawText("REMAINING", cx, cy + radius * 0.25f, Paint(centerSmall).apply { textSize = radius * 0.07f; letterSpacing = 0.1f })
         canvas.drawText(state.timerStr, cx, cy + radius * 0.4f, timerPaint)
 
         val needleAngle = ((state.currentDec / 24.0) * 360.0 - 90.0) * (Math.PI / 180.0)
         val nx = cx + cos(needleAngle).toFloat() * (innerRadius - 10f)
         val ny = cy + sin(needleAngle).toFloat() * (innerRadius - 10f)
-        canvas.drawLine(cx, cy, nx, ny, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE; strokeWidth = 5f; strokeCap = android.graphics.Paint.Cap.ROUND })
-        canvas.drawCircle(nx, ny, 8f, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply{ color = android.graphics.Color.WHITE })
-        canvas.drawCircle(nx, ny, 5f, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply{ color = android.graphics.Color.RED })
+        canvas.drawLine(cx, cy, nx, ny, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; strokeWidth = 5f; strokeCap = Paint.Cap.ROUND })
+        canvas.drawCircle(nx, ny, 8f, Paint(Paint.ANTI_ALIAS_FLAG).apply{ color = Color.WHITE })
+        canvas.drawCircle(nx, ny, 5f, Paint(Paint.ANTI_ALIAS_FLAG).apply{ color = Color.RED })
 
         val panelTop = height * 0.72f
         val panelBottom = height * 0.95f
         val pWidth = width * 0.9f
         val px = width * 0.05f
-        canvas.drawRoundRect(px, panelTop, px + pWidth, panelBottom, 50f, 50f, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.parseColor("#232742") })
+        canvas.drawRoundRect(px, panelTop, px + pWidth, panelBottom, 50f, 50f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#232742") })
 
-        val titlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.GRAY; textSize = width * 0.025f; textAlign = android.graphics.Paint.Align.CENTER; letterSpacing = 0.1f }
-        val valPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { textSize = width * 0.035f; textAlign = android.graphics.Paint.Align.CENTER; typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, android.graphics.Typeface.BOLD) }
+        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.GRAY; textSize = width * 0.025f; textAlign = Paint.Align.CENTER; letterSpacing = 0.1f }
+        val valPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = width * 0.035f; textAlign = Paint.Align.CENTER; typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD) }
 
-        canvas.drawRoundRect(width/2f - 150f, panelTop + 30f, width/2f + 150f, panelTop + 80f, 25f, 25f, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply{ color = android.graphics.Color.parseColor("#353A55") })
-        canvas.drawText("HUBBALLI (FALLBACK)", width/2f, panelTop + 62f, android.graphics.Paint(titlePaint).apply { color = android.graphics.Color.WHITE })
+        canvas.drawRoundRect(width/2f - 150f, panelTop + 30f, width/2f + 150f, panelTop + 80f, 25f, 25f, Paint(Paint.ANTI_ALIAS_FLAG).apply{ color = Color.parseColor("#353A55") })
+        canvas.drawText("HUBBALLI (FALLBACK)", width/2f, panelTop + 62f, Paint(titlePaint).apply { color = Color.WHITE })
 
         val y1 = panelTop + 140f
         canvas.drawText("SEHRI", width*0.25f, y1 - 20f, titlePaint)
-        valPaint.color = android.graphics.Color.parseColor("#80CBC4"); canvas.drawText(state.sehriStr, width*0.25f, y1 + 10f, valPaint)
+        valPaint.color = Color.parseColor("#80CBC4"); canvas.drawText(state.sehriStr, width*0.25f, y1 + 10f, valPaint)
         canvas.drawText("IFTAR", width*0.5f, y1 - 20f, titlePaint)
-        valPaint.color = android.graphics.Color.parseColor("#80CBC4"); canvas.drawText(state.iftarStr, width*0.5f, y1 + 10f, valPaint)
+        valPaint.color = Color.parseColor("#80CBC4"); canvas.drawText(state.iftarStr, width*0.5f, y1 + 10f, valPaint)
         canvas.drawText("HIJRI", width*0.75f, y1 - 20f, titlePaint)
-        valPaint.color = android.graphics.Color.parseColor("#FFCC80"); 
+        valPaint.color = Color.parseColor("#FFCC80"); 
         val hLines = state.hijriDate.split("\n")
         if(hLines.size > 1) { canvas.drawText(hLines[0], width*0.75f, y1 + 5f, valPaint); canvas.drawText(hLines[1], width*0.75f, y1 + 35f, valPaint) } 
         else canvas.drawText(state.hijriDate, width*0.75f, y1 + 10f, valPaint)
 
-        canvas.drawLine(px + 40f, y1 + 45f, px + pWidth - 40f, y1 + 45f, android.graphics.Paint().apply{ color = android.graphics.Color.parseColor("#465287"); strokeWidth = 2f })
+        canvas.drawLine(px + 40f, y1 + 45f, px + pWidth - 40f, y1 + 45f, Paint().apply{ color = Color.parseColor("#465287"); strokeWidth = 2f })
 
         val y2 = panelTop + 210f
         canvas.drawText("DAY PLANET", width*0.18f, y2 - 20f, titlePaint)
-        valPaint.color = android.graphics.Color.parseColor("#FFCC80"); canvas.drawText(state.dayPlanet, width*0.18f, y2 + 10f, valPaint)
+        valPaint.color = Color.parseColor("#FFCC80"); canvas.drawText(state.dayPlanet, width*0.18f, y2 + 10f, valPaint)
         canvas.drawText("HOUR PLANET", width*0.38f, y2 - 20f, titlePaint)
         canvas.drawText(state.hourPlanet, width*0.38f, y2 + 10f, valPaint)
         canvas.drawText("MIN PLANET", width*0.62f, y2 - 20f, titlePaint)
-        valPaint.color = android.graphics.Color.parseColor("#FF4E50"); canvas.drawText(state.minPlanet, width*0.62f, y2 + 10f, valPaint)
+        valPaint.color = Color.parseColor("#FF4E50"); canvas.drawText(state.minPlanet, width*0.62f, y2 + 10f, valPaint)
         canvas.drawText("SUNSET / RISE", width*0.82f, y2 - 20f, titlePaint)
-        valPaint.color = android.graphics.Color.parseColor("#FFCC80"); canvas.drawText("${String.format("%.1f", state.degMagr)}° / ${String.format("%.1f", state.degSunr)}°", width*0.82f, y2 + 10f, valPaint)
+        valPaint.color = Color.parseColor("#FFCC80"); canvas.drawText("${String.format("%.1f", state.degMagr)}° / ${String.format("%.1f", state.degSunr)}°", width*0.82f, y2 + 10f, valPaint)
     }
 }
 
@@ -307,7 +322,7 @@ class NamazWallpaperService : WallpaperService() {
 
         private fun drawFrame() {
             val holder = surfaceHolder
-            var canvas: android.graphics.Canvas? = null
+            var canvas: Canvas? = null
             try {
                 canvas = holder.lockCanvas()
                 if (canvas != null) DataEngine.state?.let { DashboardRenderer.draw(canvas, canvas.width, canvas.height, it) }
@@ -321,29 +336,51 @@ class NamazWallpaperService : WallpaperService() {
 // --- 6. MAIN ACTIVITY UI ---
 class MainActivity : ComponentActivity() {
     private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        DataEngine.start(this@MainActivity)
+        DataEngine.start(this)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        DataEngine.start(this) 
+
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             requestPermissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
-        } else {
-            DataEngine.start(this)
         }
 
         setContent {
-            var trigger by remember { mutableStateOf(0) }
-            LaunchedEffect(Unit) { while (true) { delay(1000); trigger++ } }
-
             Box(modifier = Modifier.fillMaxSize()) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    trigger
-                    drawIntoCanvas { nativeCanvas ->
-                        DataEngine.state?.let { DashboardRenderer.draw(nativeCanvas.nativeCanvas, size.width.toInt(), size.height.toInt(), it) }
+                
+                // Pure Native AndroidView Engine
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { context ->
+                        object : View(context) {
+                            private val handler = Handler(Looper.getMainLooper())
+                            private val drawRunnable = object : Runnable {
+                                override fun run() {
+                                    invalidate()
+                                    handler.postDelayed(this, 1000)
+                                }
+                            }
+
+                            override fun onAttachedToWindow() {
+                                super.onAttachedToWindow()
+                                handler.post(drawRunnable)
+                            }
+
+                            override fun onDetachedFromWindow() {
+                                super.onDetachedFromWindow()
+                                handler.removeCallbacks(drawRunnable)
+                            }
+
+                            override fun onDraw(canvas: Canvas) {
+                                super.onDraw(canvas)
+                                DataEngine.state?.let { DashboardRenderer.draw(canvas, width, height, it) }
+                            }
+                        }
                     }
-                }
+                )
 
                 Button(
                     onClick = {
@@ -353,7 +390,9 @@ class MainActivity : ComponentActivity() {
                         startActivity(intent)
                     },
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFF353A55L))
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = androidx.compose.ui.graphics.Color(Color.parseColor("#353A55"))
+                    )
                 ) {
                     Text("SET AS LIVE WALLPAPER", color = androidx.compose.ui.graphics.Color.White)
                 }
