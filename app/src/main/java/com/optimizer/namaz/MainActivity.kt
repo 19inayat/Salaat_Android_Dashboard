@@ -231,53 +231,64 @@ class NamazWallpaperService : WallpaperService() {
 
     inner class NamazEngine : Engine() {
 
-        private var visible = false
+    private val handler =
+        android.os.Handler(
+            android.os.Looper.getMainLooper()
+        )
 
-        private val runnable = object : Runnable {
+    private var visible = false
 
-            override fun run() {
+    private val runnable = object : Runnable {
 
-                drawFrame()
+        override fun run() {
 
-                if (visible) {
-                    handler.postDelayed(this, 1000)
-                }
-            }
-        }
-
-        override fun onVisibilityChanged(visible: Boolean) {
-
-            this.visible = visible
+            drawFrame()
 
             if (visible) {
-                handler.post(runnable)
-            } else {
-                handler.removeCallbacks(runnable)
-            }
-        }
 
-        private fun drawFrame() {
-
-            val canvas = surfaceHolder.lockCanvas()
-
-            canvas?.let {
-
-                DataEngine.update()
-
-                DataEngine.state?.let { state ->
-
-                    DashboardRenderer.draw(
-                        it,
-                        it.width,
-                        it.height,
-                        state
-                    )
-                }
-
-                surfaceHolder.unlockCanvasAndPost(it)
+                handler.postDelayed(this, 1000)
             }
         }
     }
+
+    override fun onVisibilityChanged(
+        visible: Boolean
+    ) {
+
+        this.visible = visible
+
+        if (visible) {
+
+            handler.post(runnable)
+
+        } else {
+
+            handler.removeCallbacks(runnable)
+        }
+    }
+
+    private fun drawFrame() {
+
+        val canvas = surfaceHolder.lockCanvas()
+
+        canvas?.let {
+
+            DataEngine.update()
+
+            DataEngine.state?.let { state ->
+
+                DashboardRenderer.draw(
+                    it,
+                    it.width,
+                    it.height,
+                    state
+                )
+            }
+
+            surfaceHolder.unlockCanvasAndPost(it)
+        }
+    }
+}
 }
 
 class MainActivity : ComponentActivity() {
