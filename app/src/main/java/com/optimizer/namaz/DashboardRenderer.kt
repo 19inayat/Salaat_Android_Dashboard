@@ -1,8 +1,7 @@
 package com.optimizer.namaz
 
 import android.graphics.*
-import kotlin.math.cos
-import kotlin.math.sin
+import kotlin.math.*
 
 object DashboardRenderer {
 
@@ -13,34 +12,45 @@ object DashboardRenderer {
         state: NamazState
     ) {
 
-        drawBackground(
+        drawBackground(canvas, width, height)
+
+        val cx = width / 2f
+        val cy = height * 0.40f
+
+        drawOuterTicks(canvas, cx, cy, width)
+
+        drawPrayerSegments(
             canvas,
+            cx,
+            cy,
             width,
-            height
+            state
         )
 
-        drawPrayerRing(
+        drawCenterCircle(
             canvas,
-            width,
-            height,
-            state
+            cx,
+            cy,
+            width
         )
 
         drawNeedle(
             canvas,
+            cx,
+            cy,
             width,
-            height,
             state
         )
 
-        drawCenterInfo(
+        drawCenterText(
             canvas,
+            cx,
+            cy,
             width,
-            height,
             state
         )
 
-        drawBottomPanel(
+        drawBottomGlassPanel(
             canvas,
             width,
             height,
@@ -60,8 +70,8 @@ object DashboardRenderer {
                 0f,
                 0f,
                 height.toFloat(),
-                Color.parseColor("#09111F"),
-                Color.parseColor("#16243B"),
+                Color.parseColor("#5B5AA8"),
+                Color.parseColor("#45448F"),
                 Shader.TileMode.CLAMP
             )
 
@@ -78,18 +88,78 @@ object DashboardRenderer {
         )
     }
 
-    private fun drawPrayerRing(
+    private fun drawOuterTicks(
         canvas: Canvas,
+        cx: Float,
+        cy: Float,
+        width: Int
+    ) {
+
+        val radius = width * 0.40f
+
+        val paint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+
+                color = Color.argb(90, 255, 255, 255)
+
+                strokeWidth = 2f
+
+                textSize = width * 0.03f
+
+                textAlign = Paint.Align.CENTER
+            }
+
+        for (i in 1..24) {
+
+            val angle =
+                Math.toRadians(
+                    (i * 15f - 90f).toDouble()
+                )
+
+            val x1 =
+                cx + cos(angle).toFloat() * radius
+
+            val y1 =
+                cy + sin(angle).toFloat() * radius
+
+            val x2 =
+                cx + cos(angle).toFloat() * (radius - 20)
+
+            val y2 =
+                cy + sin(angle).toFloat() * (radius - 20)
+
+            canvas.drawLine(
+                x1,
+                y1,
+                x2,
+                y2,
+                paint
+            )
+
+            val tx =
+                cx + cos(angle).toFloat() * (radius + 30)
+
+            val ty =
+                cy + sin(angle).toFloat() * (radius + 30)
+
+            canvas.drawText(
+                i.toString(),
+                tx,
+                ty,
+                paint
+            )
+        }
+    }
+
+    private fun drawPrayerSegments(
+        canvas: Canvas,
+        cx: Float,
+        cy: Float,
         width: Int,
-        height: Int,
         state: NamazState
     ) {
 
-        val cx = width / 2f
-
-        val cy = height * 0.42f
-
-        val radius = width * 0.34f
+        val radius = width * 0.31f
 
         val rect =
             RectF(
@@ -100,6 +170,12 @@ object DashboardRenderer {
             )
 
         state.segments.forEach {
+
+            val start =
+                ((it.start / 24f) * 360f - 90f).toFloat()
+
+            val sweep =
+                (((it.end - it.start) / 24f) * 360f).toFloat()
 
             val shader =
                 SweepGradient(
@@ -117,18 +193,19 @@ object DashboardRenderer {
 
                     style = Paint.Style.STROKE
 
-                    strokeWidth = 55f
+                    strokeWidth = 85f
 
                     this.shader = shader
 
                     strokeCap = Paint.Cap.ROUND
+
+                    setShadowLayer(
+                        20f,
+                        0f,
+                        0f,
+                        Color.BLACK
+                    )
                 }
-
-            val start =
-                ((it.start / 24.0) * 360f - 90f).toFloat()
-
-            val sweep =
-                (((it.end - it.start) / 24.0) * 360f).toFloat()
 
             canvas.drawArc(
                 rect,
@@ -140,22 +217,51 @@ object DashboardRenderer {
         }
     }
 
+    private fun drawCenterCircle(
+        canvas: Canvas,
+        cx: Float,
+        cy: Float,
+        width: Int
+    ) {
+
+        val radius = width * 0.18f
+
+        val paint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+
+                shader =
+                    RadialGradient(
+                        cx,
+                        cy,
+                        radius,
+                        Color.parseColor("#171738"),
+                        Color.parseColor("#0D1025"),
+                        Shader.TileMode.CLAMP
+                    )
+            }
+
+        canvas.drawCircle(
+            cx,
+            cy,
+            radius,
+            paint
+        )
+    }
+
     private fun drawNeedle(
         canvas: Canvas,
+        cx: Float,
+        cy: Float,
         width: Int,
-        height: Int,
         state: NamazState
     ) {
 
-        val cx = width / 2f
-
-        val cy = height * 0.42f
-
-        val radius = width * 0.30f
+        val radius = width * 0.24f
 
         val angle =
-            ((state.currentDec / 24.0) * 360.0 - 90.0) *
-                    (Math.PI / 180.0)
+            Math.toRadians(
+                (state.currentDec * 15f - 90f)
+            )
 
         val nx =
             cx + cos(angle).toFloat() * radius
@@ -166,9 +272,9 @@ object DashboardRenderer {
         val paint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
 
-                color = Color.WHITE
+                color = Color.parseColor("#FF2E63")
 
-                strokeWidth = 8f
+                strokeWidth = 6f
             }
 
         canvas.drawLine(
@@ -180,62 +286,89 @@ object DashboardRenderer {
         )
 
         canvas.drawCircle(
+            nx,
+            ny,
+            12f,
+            paint
+        )
+
+        canvas.drawCircle(
             cx,
             cy,
-            18f,
+            14f,
             paint
         )
     }
 
-    private fun drawCenterInfo(
+    private fun drawCenterText(
         canvas: Canvas,
+        cx: Float,
+        cy: Float,
         width: Int,
-        height: Int,
         state: NamazState
     ) {
 
-        val cx = width / 2f
-
-        val cy = height * 0.42f
-
-        val title =
+        val big =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
 
                 color = Color.WHITE
 
-                textSize = width * 0.08f
-
                 textAlign = Paint.Align.CENTER
+
+                textSize = width * 0.16f
 
                 isFakeBoldText = true
             }
 
-        canvas.drawText(
-            state.currentSegment?.name ?: "--",
-            cx,
-            cy,
-            title
-        )
-
-        val timer =
+        val mid =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
 
-                color = Color.parseColor("#90CAF9")
-
-                textSize = width * 0.05f
+                color = Color.WHITE
 
                 textAlign = Paint.Align.CENTER
+
+                textSize = width * 0.07f
             }
+
+        val small =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+
+                color = Color.parseColor("#FFD54F")
+
+                textAlign = Paint.Align.CENTER
+
+                textSize = width * 0.045f
+            }
+
+        val time =
+            java.text.SimpleDateFormat(
+                "H:mm",
+                java.util.Locale.getDefault()
+            ).format(state.now)
+
+        canvas.drawText(
+            time,
+            cx,
+            cy - 20,
+            big
+        )
+
+        canvas.drawText(
+            state.currentSegment?.name ?: "",
+            cx,
+            cy + 60,
+            mid
+        )
 
         canvas.drawText(
             state.timerStr,
             cx,
-            cy + 80f,
-            timer
+            cy + 110,
+            small
         )
     }
 
-    private fun drawBottomPanel(
+    private fun drawBottomGlassPanel(
         canvas: Canvas,
         width: Int,
         height: Int,
@@ -244,10 +377,10 @@ object DashboardRenderer {
 
         val rect =
             RectF(
-                width * 0.08f,
-                height * 0.78f,
-                width * 0.92f,
-                height * 0.93f
+                width * 0.06f,
+                height * 0.72f,
+                width * 0.94f,
+                height * 0.92f
             )
 
         val paint =
@@ -255,42 +388,54 @@ object DashboardRenderer {
 
                 color =
                     Color.argb(
-                        120,
+                        90,
                         20,
-                        28,
-                        45
+                        22,
+                        50
                     )
             }
 
         canvas.drawRoundRect(
             rect,
-            40f,
-            40f,
+            50f,
+            50f,
             paint
         )
 
-        val txt =
+        val title =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
 
                 color = Color.WHITE
 
-                textSize = width * 0.045f
+                textAlign = Paint.Align.CENTER
+
+                textSize = width * 0.05f
+
+                isFakeBoldText = true
+            }
+
+        val value =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+
+                color = Color.parseColor("#FFD54F")
 
                 textAlign = Paint.Align.CENTER
+
+                textSize = width * 0.06f
             }
 
         canvas.drawText(
             "PLANETARY HOUR ACTIVE",
             width / 2f,
-            height * 0.84f,
-            txt
+            height * 0.79f,
+            title
         )
 
         canvas.drawText(
             state.currentSegment?.name ?: "",
             width / 2f,
-            height * 0.89f,
-            txt
+            height * 0.86f,
+            value
         )
     }
 }
