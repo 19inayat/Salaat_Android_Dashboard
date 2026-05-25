@@ -13,7 +13,7 @@ pluginManagement {
 dependencyResolutionManagement {
 
     repositoriesMode.set(
-        RepositoriesMode.FAIL_ON_PROJECT_REPOS
+        RepositoriesMode.PREFER_SETTINGS
     )
 
     repositories {
@@ -24,6 +24,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "NamazDashboard"
+rootProject.name = "Salaat_Android_Dashboard"
 
 include(":app")
